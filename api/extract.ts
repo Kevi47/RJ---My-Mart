@@ -7,6 +7,9 @@ import { SYSTEM } from "./_lib/extractPrompt.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(501).json({ error: "Reading invoices from photos is not set up yet. Use \"Enter manually instead\"." });
+  }
 
   // Only signed-in staff can spend API credits.
   const token = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
