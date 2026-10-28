@@ -10,9 +10,14 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [setupNeeded, setSetupNeeded] = useState(false);
+  const [dbMissing, setDbMissing] = useState(false);
 
   useEffect(() => {
-    supabase.rpc("setup_needed").then(({ data }) => setSetupNeeded(data === true));
+    supabase.rpc("setup_needed").then(({ data, error }) => {
+      setSetupNeeded(data === true);
+      // The function only exists once supabase/schema.sql has been run
+      setDbMissing(Boolean(error));
+    });
   }, []);
 
   async function submit(e: FormEvent) {
@@ -70,6 +75,12 @@ export default function Login() {
           {busy ? "Please wait…" : "Sign in"}
         </button>
         <p className="text-center text-xs text-slate-500">New staff accounts are created by the admin. First-time password is your employee code.</p>
+        {dbMissing && (
+          <div className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
+            The database is not set up yet. In Supabase open <b>SQL Editor → New query</b>, paste the contents of <code>supabase/schema.sql</code>, press{" "}
+            <b>Run</b>, then reload this page.
+          </div>
+        )}
         {setupNeeded && (
           <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
             No accounts exist yet.
