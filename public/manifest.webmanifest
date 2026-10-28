@@ -1,0 +1,9 @@
+{
+  "name": "RJ My Mart Receiving",
+  "short_name": "RJ Receiving",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f766e",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
