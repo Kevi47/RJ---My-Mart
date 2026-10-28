@@ -47,6 +47,12 @@ npm run dev
 2. **Environment Variables**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ANTHROPIC_API_KEY` (optionally `CLAUDE_MODEL`).
 3. Deploy. In Supabase → **Authentication → URL Configuration**, add the Vercel URL as Site URL.
 
+## Trial without Supabase
+Reads invoice photos and matches them against a stock export, printing the checks:
+```bash
+node --env-file=.env.local scripts/try-invoices.mts "amballur stock.xlsx" invoice1.jpg invoice2.jpg
+```
+
 ## Daily flow
 1. Upload the latest Polosys stock report (**Stock (SOH)**).
 2. **New invoice** → photograph → *Read invoice* → check flagged lines, match unmatched items, confirm pack MRP where asked.
