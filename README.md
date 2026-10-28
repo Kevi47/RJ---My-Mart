@@ -2,14 +2,14 @@
 
 A companion to Polosys ERP (BRD v0.3). It reads supplier invoices from a photo, checks them against Polosys stock-on-hand, counts physical receiving by barcode (phone or laptop, live), and produces a reconciliation report for manager approval and export back to Polosys.
 
-**Stack:** React + Vite (frontend), Supabase (Postgres, auth, realtime, storage), Vercel (hosting + `/api/extract` serverless function), Claude Opus 5.5 vision (invoice reading).
+**Stack:** React + Vite (frontend), Supabase (Postgres, auth, realtime, storage), Vercel (hosting), free Tesseract OCR running in the browser (invoice reading). An optional Claude vision reader (`/api/extract`) can be switched on later.
 
 ## How BRD requirements map to the app
 
 | BRD | Where |
 |---|---|
 | FR-1 SOH upload | **Stock (SOH)** page: upload the Polosys *Stock Report* Excel |
-| FR-2 Invoice capture | **New invoice**: photos → `api/extract.ts` (layout-agnostic, structured output) |
+| FR-2 Invoice capture | **New invoice**: photos → on-device OCR (`src/lib/ocr/`): three passes, each line solved as qty × rate ≈ amount, best pass kept |
 | FR-3 Price & SOH cross-check | Invoice → *Lines & price check*: flags No change / MRP changed / Sale price issue / Cost changed / New item |
 | FR-4 Dual MRP lines | MRP-changed lines create an `mrp_batches` row on approval; old SOH line untouched; *MRP Batches* sheet in export |
 | FR-5 Live scan counter | *Receive* tab and phone scanner: "3 of 6", over-scan alert |
@@ -44,7 +44,7 @@ npm run dev
 
 ### 3. Vercel
 1. vercel.com → **Add New → Project** → import `Kevi47/RJ---My-Mart` (framework preset: Vite).
-2. **Environment Variables**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ANTHROPIC_API_KEY` (optionally `CLAUDE_MODEL`).
+2. **Environment Variables**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` (all four use the **publishable** key / URL; never the secret key). Optional: `VITE_INVOICE_READER=ai` plus `ANTHROPIC_API_KEY` to use the paid Claude reader instead of free OCR.
 3. Deploy. In Supabase → **Authentication → URL Configuration**, add the Vercel URL as Site URL.
 
 ## Trial without Supabase

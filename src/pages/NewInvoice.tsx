@@ -8,6 +8,10 @@ import { findOrCreateSupplier, matchLines } from "../lib/match";
 import { runChecks } from "../lib/checks";
 import { validateHeader } from "../lib/validate";
 import type { InvoiceLine, Item } from "../lib/types";
+import { readInvoiceOcr } from "../lib/ocr/readInvoice";
+
+// "ocr" (default, free, runs on the device) or "ai" (Claude via /api/extract, needs ANTHROPIC_API_KEY)
+const READER = import.meta.env.VITE_INVOICE_READER === "ai" ? "ai" : "ocr";
 
 type Step = "idle" | "preparing" | "uploading" | "reading" | "matching" | "error";
 
@@ -15,7 +19,7 @@ const STEP_LABEL: Record<Step, string> = {
   idle: "",
   preparing: "Preparing photos…",
   uploading: "Uploading photos…",
-  reading: "Reading the invoice (about 20–60 seconds)…",
+  reading: "Reading the invoice…",
   matching: "Matching items against stock…",
   error: "",
 };
@@ -26,6 +30,7 @@ export default function NewInvoice() {
   const [images, setImages] = useState<PreparedImage[]>([]);
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ label: string; fraction: number } | null>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const filesRef = useRef<HTMLInputElement>(null);
 
@@ -78,18 +83,34 @@ export default function NewInvoice() {
       }
 
       setStep("reading");
-      const { data: sess } = await supabase.auth.getSession();
-      const resp = await fetch("/api/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sess.session?.access_token}` },
-        body: JSON.stringify({ images: images.map(({ data, media_type }) => ({ data, media_type })) }),
-      });
-      const body = await resp.json().catch(() => ({ error: `Server error ${resp.status}` }));
-      if (!resp.ok) throw new Error(body.error ?? `Server error ${resp.status}`);
-      const ex = body.invoice as ExtractedInvoice;
+      let ex: ExtractedInvoice;
+      let body: { model?: string; usage?: unknown } = { model: "tesseract-ocr" };
+      if (READER === "ocr") {
+        ex = await readInvoiceOcr(
+          images.map((img) => img.source ?? img.blob),
+          store.gstin,
+          (label, fraction) => setProgress({ label, fraction }),
+        );
+      } else {
+        const { data: sess } = await supabase.auth.getSession();
+        const resp = await fetch("/api/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${sess.session?.access_token}` },
+          body: JSON.stringify({ images: images.map(({ data, media_type }) => ({ data, media_type })) }),
+        });
+        body = await resp.json().catch(() => ({ error: `Server error ${resp.status}` }));
+        if (!resp.ok) throw new Error((body as { error?: string }).error ?? `Server error ${resp.status}`);
+        ex = (body as { invoice: ExtractedInvoice }).invoice;
+      }
+      setProgress(null);
 
       setStep("matching");
       const supplierId = await findOrCreateSupplier(ex.supplier_name, ex.supplier_gstin);
+      // OCR'd names are noisy; a supplier already on file (matched by GSTIN) keeps its saved name
+      if (supplierId && READER === "ocr") {
+        const { data: sup } = await supabase.from("suppliers").select("name").eq("id", supplierId).maybeSingle();
+        if (sup?.name) ex.supplier_name = sup.name;
+      }
       const matches = await matchLines(store.id, supplierId, ex.lines);
 
       const { error: invErr } = await supabase.from("invoices").insert({
@@ -166,6 +187,7 @@ export default function NewInvoice() {
 
       nav(`/invoices/${invoiceId}`);
     } catch (e) {
+      setProgress(null);
       setError(e instanceof Error ? e.message : String(e));
       setStep("error");
     }
@@ -221,8 +243,15 @@ export default function NewInvoice() {
         {error && <div className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
         {busy && (
           <div className="flex items-center gap-3 rounded-lg bg-brand-50 p-3 text-sm text-brand-800">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-brand-700 border-t-transparent" />
-            {STEP_LABEL[step]}
+            <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-brand-700 border-t-transparent" />
+            <div className="min-w-0 flex-1">
+              {step === "reading" && progress ? progress.label : STEP_LABEL[step]}
+              {step === "reading" && progress && (
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-brand-100">
+                  <div className="h-full bg-brand-600 transition-[width]" style={{ width: `${Math.round(progress.fraction * 100)}%` }} />
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -234,6 +263,7 @@ export default function NewInvoice() {
       </div>
       <p className="text-xs text-slate-500">
         Every figure the system reads is shown for you to check before anything is counted or approved.
+        {READER === "ocr" && " Photos are read on this device with free OCR: keep the invoice flat, fill the frame, and avoid shadows and glare."}
       </p>
     </div>
   );

@@ -4,6 +4,7 @@ export interface PreparedImage {
   data: string; // base64 without prefix
   media_type: "image/jpeg";
   blob: Blob;
+  source?: Blob; // original full-resolution photo, for on-device OCR
   preview: string;
 }
 
@@ -23,7 +24,7 @@ export async function prepareImage(file: File, maxEdge = 2200, quality = 0.85): 
     r.onload = () => res(r.result as string);
     r.readAsDataURL(blob);
   });
-  return { data: dataUrl.split(",")[1], media_type: "image/jpeg", blob, preview: dataUrl };
+  return { data: dataUrl.split(",")[1], media_type: "image/jpeg", blob, preview: dataUrl, source: file };
 }
 
 let audioCtx: AudioContext | null = null;
