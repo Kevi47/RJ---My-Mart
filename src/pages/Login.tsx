@@ -1,25 +1,42 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
+import { createStaffLogin, markDefaultPassword, normaliseCode, signInStaff } from "../lib/staffAuth";
+
+const FIRST_ADMIN = "E9999";
 
 export default function Login() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [setupNeeded, setSetupNeeded] = useState(false);
+
+  useEffect(() => {
+    supabase.rpc("setup_needed").then(({ data }) => setSetupNeeded(data === true));
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setMsg(null);
-    const { error } =
-      mode === "signin"
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
+    const { error } = await signInStaff(code, password);
     setBusy(false);
-    if (error) setMsg(error.message);
-    else if (mode === "signup") setMsg("Account created. If email confirmation is on, confirm your email, then sign in.");
+    if (error) setMsg(error.message === "Invalid login credentials" ? "Wrong employee code or password." : error.message);
+    else markDefaultPassword(normaliseCode(password) === normaliseCode(code));
+  }
+
+  async function firstTimeSetup() {
+    setBusy(true);
+    setMsg(null);
+    const { error } = await createStaffLogin(FIRST_ADMIN, "Admin");
+    if (error) {
+      setBusy(false);
+      return setMsg(`${error.message}. In Supabase → Authentication → Sign In / Providers → Email, turn off "Confirm email" and try again.`);
+    }
+    const { error: signInError } = await signInStaff(FIRST_ADMIN, FIRST_ADMIN);
+    setBusy(false);
+    if (signInError) setMsg(signInError.message);
+    else markDefaultPassword(true);
   }
 
   return (
@@ -32,35 +49,35 @@ export default function Login() {
             <div className="text-xs text-slate-500">Invoice verification & receiving</div>
           </div>
         </div>
-        {mode === "signup" && (
-          <div>
-            <label className="label">Your name</label>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-        )}
         <div>
-          <label className="label">Email</label>
-          <input className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </div>
-        <div>
-          <label className="label">Password</label>
+          <label className="label">Employee code</label>
           <input
-            className="input"
-            type="password"
-            autoComplete={mode === "signin" ? "current-password" : "new-password"}
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            className="input uppercase"
+            autoComplete="username"
+            autoCapitalize="characters"
+            placeholder="e.g. E1001"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
             required
           />
         </div>
+        <div>
+          <label className="label">Password</label>
+          <input className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </div>
         {msg && <p className="text-sm text-rose-700">{msg}</p>}
         <button className="btn-primary w-full" disabled={busy}>
-          {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+          {busy ? "Please wait…" : "Sign in"}
         </button>
-        <button type="button" className="w-full text-center text-xs text-slate-500 underline" onClick={() => setMode(mode === "signin" ? "signup" : "signin")}>
-          {mode === "signin" ? "New staff member? Create an account" : "Have an account? Sign in"}
-        </button>
+        <p className="text-center text-xs text-slate-500">New staff accounts are created by the admin. First-time password is your employee code.</p>
+        {setupNeeded && (
+          <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+            No accounts exist yet.
+            <button type="button" className="btn-secondary mt-2 w-full" disabled={busy} onClick={firstTimeSetup}>
+              Create admin login {FIRST_ADMIN}
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );

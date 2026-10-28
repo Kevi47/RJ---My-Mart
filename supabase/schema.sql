@@ -25,15 +25,17 @@ create table if not exists profiles (
   created_at timestamptz not null default now()
 );
 alter table profiles add column if not exists active boolean not null default false;
+alter table profiles add column if not exists emp_code text unique;   -- login ID, e.g. E9999
 
 -- First user to sign up becomes an active admin; everyone after is an inactive clerk
 -- until an admin activates them in Settings.
 create or replace function handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  insert into profiles (id, full_name, role, store_id, active)
+  insert into profiles (id, emp_code, full_name, role, store_id, active)
   values (
     new.id,
+    upper(coalesce(new.raw_user_meta_data->>'emp_code', split_part(new.email, '@', 1))),
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
     case when exists (select 1 from profiles) then 'clerk' else 'admin' end,
     (select id from stores order by created_at limit 1),
@@ -50,6 +52,13 @@ create or replace function my_role() returns text
 language sql stable security definer set search_path = public as $$
   select role from profiles where id = auth.uid() and active
 $$;
+
+-- Lets the sign-in page offer one-time admin setup on an empty system.
+create or replace function setup_needed() returns boolean
+language sql stable security definer set search_path = public as $$
+  select not exists (select 1 from profiles)
+$$;
+grant execute on function setup_needed() to anon, authenticated;
 
 create or replace function is_active() returns boolean
 language sql stable security definer set search_path = public as $$

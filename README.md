@@ -31,9 +31,9 @@ A companion to Polosys ERP (BRD v0.3). It reads supplier invoices from a photo, 
 ### 1. Supabase
 1. Open the project → **SQL Editor** → paste all of `supabase/schema.sql` → **Run**.
 2. **Project Settings → API**: copy the *Project URL* and the *anon / publishable* key.
-3. (Optional) **Authentication → Providers → Email**: turn off *Confirm email* if staff don't have working mailboxes.
+3. **Authentication → Sign In / Providers → Email**: turn **off** *Confirm email* (staff log in with employee codes, not real mailboxes).
 
-The first account to sign up becomes the **admin**. Later sign-ups wait until an admin ticks *Active* in Settings.
+**Logins:** staff sign in with an employee code. On an empty system the sign-in page offers *Create admin login E9999*; its first password is `E9999`. The admin then adds staff in **Settings → Staff** (code, name, role); each person's first password is their own code, and a banner asks them to change it.
 
 ### 2. Local run
 ```bash

@@ -33,7 +33,7 @@ export default function App() {
       <div className="mx-auto max-w-md p-8 text-center">
         <h1 className="text-lg font-semibold">Waiting for activation</h1>
         <p className="mt-2 text-sm text-slate-600">
-          Your account ({session.user.email}) has been created. Ask the store admin to activate it in Settings.
+          Your login ({profile.emp_code}) exists but is not active. Ask the store admin to activate it in Settings.
         </p>
         <button className="btn-secondary mt-6" onClick={() => supabase.auth.signOut()}>
           Sign out

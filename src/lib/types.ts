@@ -10,6 +10,7 @@ export interface Store {
 
 export interface Profile {
   id: string;
+  emp_code: string | null;
   full_name: string | null;
   role: Role;
   store_id: string | null;
